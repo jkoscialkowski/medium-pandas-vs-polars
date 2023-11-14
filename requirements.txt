@@ -1,0 +1,9 @@
+catboost
+ipywidgets
+jupyterlab
+lightgbm
+matplotlib
+pandas
+polars
+scikit-learn
+ydata-profiling
