@@ -8,23 +8,33 @@ from constants import *
 def cleanup_and_cast(df: pd.DataFrame) -> pd.DataFrame:
     new_df_clean = df.replace(to_replace=NA_VALUES, value=np.nan)
 
-    for var in VARS_WITH_TRAILING_UNDERSCORES:
-        new_df_clean[var] = new_df_clean[var].str.replace(pat="_", repl="")
+    new_df_clean = (
+        new_df_clean
+        .assign(
+            **{
+                var: new_df_clean[var].str.replace(pat="_", repl="")
+                for var in VARS_WITH_TRAILING_UNDERSCORES
+            }
+        )
+        .assign(
+            Type_of_Loan=new_df_clean["Type_of_Loan"].apply(_parse_type_of_loan),
+            Credit_History_Age=new_df_clean["Credit_History_Age"].apply(_parse_credit_history_age),
+            Payment_of_Min_Amount=new_df_clean["Payment_of_Min_Amount"].apply(_parse_payment_of_min_amount)
+        )
+        .astype({var: float for var in VARS_TO_CAST})
+    )
 
-    new_df_clean.loc[:, "Type_of_Loan"] = new_df_clean["Type_of_Loan"].apply(_parse_type_of_loan)
-    new_df_clean.loc[:, "Credit_History_Age"] = new_df_clean["Credit_History_Age"].apply(_parse_credit_history_age)
-    new_df_clean.loc[:, "Payment_of_Min_Amount"] = new_df_clean["Payment_of_Min_Amount"].apply(_parse_payment_of_min_amount)
-
-    new_df_clean = new_df_clean.astype({var: float for var in VARS_TO_CAST})
     return new_df_clean
 
 
 def replace_outliers(df: pd.DataFrame) -> pd.DataFrame:
-    output_df = df.copy(deep=True)
-    for var, tolerance in VARS_WITH_OUTLIERS_TOLERANCES.items():
-        per_group_medians = df[var].groupby(df["Customer_ID"]).transform("median")
-        which_outliers = (df[var] - per_group_medians).abs() > tolerance
-        output_df[var].mask(which_outliers, other=np.nan, inplace=True)
+    per_group_medians = df[VARS_WITH_OUTLIERS_TOLERANCES.keys()].groupby(df["Customer_ID"]).transform("median")
+    output_df = df.assign(
+        **{
+            var: df[var].mask((df[var] - per_group_medians[var]).abs() > tolerance, other=np.nan)
+            for var, tolerance in VARS_WITH_OUTLIERS_TOLERANCES.items()
+        }
+    )
 
     return output_df
 
